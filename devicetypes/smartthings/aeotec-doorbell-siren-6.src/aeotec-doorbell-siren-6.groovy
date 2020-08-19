@@ -142,6 +142,10 @@ def both() {
 	on()
 }
 
+def chime() {
+	on()
+}
+
 def ping() {
 	def cmds = [
 			encap(zwave.basicV1.basicGet())
@@ -152,7 +156,8 @@ def ping() {
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
 	if (cmd.value == 0) {
 		keepChildrenOnline()
-		sendEvent(name: "alarm", value: "off", displayed: false)
+		sendEvent(name: "alarm", value: "off")
+		sendEvent(name: "chime", value: "off")
 	}
 }
 
@@ -200,25 +205,30 @@ def zwaveEvent(physicalgraph.zwave.commands.notificationv3.NotificationReport cm
 		switch (cmd.event) {
 			case 0x09: //TAMPER
 				sendEvent(name: "tamper", value: "detected")
-				runIn(10, "clearTamper")
+				sendEvent(name: "alarm", value: "both")
+				runIn(2, "clearTamperAndAlarm")
 				break
 			case 0x01: //ON
 				if (state.lastTriggeredSound == 1) {
-					createEvent([name: "alarm", value: "both"])
+					sendEvent(name: "chime", value: "chime")
+					sendEvent(name: "alarm", value: "both")
 				} else {
 					setActiveSound(state.lastTriggeredSound)
 				}
 				break
 			case 0x00: //OFF
 				resetActiveSound()
-				createEvent([name: "tamper", value: "clear"])
+				sendEvent(name: "tamper", value: "clear")
+				sendEvent(name: "alarm", value: "off")
+				sendEvent(name: "chime", value: "off")
 				break
 		}
 	}
 }
 
-def clearTamper() {
+def clearTamperAndAlarm() {
 	sendEvent(name: "tamper", value: "clear")
+	sendEvent(name: "alarm", value: "off")
 }
 
 def setOnChild(deviceDni) {
@@ -250,7 +260,8 @@ def resetActiveSound() {
 def setActiveSound(soundId) {
 	String childDni = "${device.deviceNetworkId}:${soundId}"
 	def child = childDevices.find { it.deviceNetworkId == childDni }
-	child?.sendEvent([name: "chime", value: "chime"])
+	child?.sendEvent(name: "chime", value: "chime")
+	child?.sendEvent(name: "alarm", value: "both")
 }
 
 def keepChildrenOnline() {
@@ -261,6 +272,7 @@ def keepChildrenOnline() {
 		def soundNumber = i
 		String childDni = "${device.deviceNetworkId}:$soundNumber"
 		def child = childDevices.find { it.deviceNetworkId == childDni }
-		child?.sendEvent(name: "chime", value: "off", displayed: false)
+		child?.sendEvent(name: "chime", value: "off")
+		child?.sendEvent(name: "alarm", value: "off")
 	}
 }
